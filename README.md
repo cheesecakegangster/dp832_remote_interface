@@ -32,10 +32,10 @@ Only tested on Windows 10
 -----
 
 **Known issues**
-- Does not check if the input is on/off when initialising, resulting in no updates to the display
-- Under certain circumstances (VISA time-out related) the channel information can get messed up
-- Sometimes freezes and dies
+- Does not check if the input is on/off when initialising, resulting in no updates to the display until the toggle output button is pressed
+- Under certain circumstances (VISA time-out related) the channel information can get messed up, might be update rate related
 - No warning is produced when the voltage or current limit has been triggered; the only way to tell right now is by seeing that the output enabled but the output voltage is 0.000 V
 - CV in the top right of the power supply channel is a placeholder, it does not query what regulation mode is currently active
 - The entire row (where the channel information is) was to be filled in when the channel is enabled; it only fills in the parts where there is text
+- Sometimes the entire app freezes and dies, might be update rate related
 - No support for ethernet devices when detecting devices
