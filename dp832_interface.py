@@ -19,7 +19,7 @@ class ChannelFrame(tk.Frame):
         self.channel_enabled = False
         self.voltage_limit_enabled = False
         self.current_limit_enabled = False
-        self.refresh_rate = 5
+        self.refresh_rate = 2
         self.refresh_thread = None
         self.refresh_active = False
 
