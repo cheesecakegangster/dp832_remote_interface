@@ -3,6 +3,8 @@ Remote interface for Rigol DP832(A) power supplies with GUI stylised to mimic th
 
 I made this because I had no space on my desk, so I had to move the power supply to the opposite side of the desk. While that involves getting up and walking towards it, which is a problem, the biggest factor was not having a visual on what the power supply is doing at a glance.
 
+Copious amounts of ChatGPT in this code, just so you know
+
 ----
 
 **Dependencies**
@@ -24,12 +26,16 @@ Only tested on Windows 10
 
 3. Use the power supply as you would with the front interface
 
-![image](https://github.com/user-attachments/assets/f0e3796f-16cf-438e-a53c-343fe3216f8a)
+![image](https://github.com/user-attachments/assets/1213d0bf-de36-4c6b-ba6d-9eb65b739e43)
+
 
 -----
 
 **Known issues**
-- No support for ethernet devices when detecting 
-- I wanted the entire row (where the channel information is) to be filled in; it only fills in the parts where there is text
-- It does not warn you when the voltage or current limit has been triggered; the only way to tell right now is by seeing that the output enabled but the output voltage is 0.000 V
-- CV in the top right of the power supply channel is a placeholder, it does not query what regulation mode is currently active 
+- Does not check if the input is on/off when initialising, resulting in no updates to the display
+- Under certain circumstances (VISA time-out related) the channel information can get messed up
+- Sometimes freezes and dies
+- No warning is produced when the voltage or current limit has been triggered; the only way to tell right now is by seeing that the output enabled but the output voltage is 0.000 V
+- CV in the top right of the power supply channel is a placeholder, it does not query what regulation mode is currently active
+- The entire row (where the channel information is) was to be filled in when the channel is enabled; it only fills in the parts where there is text
+- No support for ethernet devices when detecting devices
