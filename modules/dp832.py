@@ -12,12 +12,14 @@ def set_channel_output_state(dp8_instrument_id: str, channels: list, state: str)
     psu = rm.open_resource(dp8_instrument_id)
 
     if state not in ['ON', 'OFF']:
-        print(f"{Fore.RED}Error: Tried to set DP832 channel output with ID {dp8_instrument_id} to unsupported value: {state} - accepted values are ['ON' | 'OFF'] (str)")
+        print(
+            f"{Fore.RED}Error: Tried to set DP832 channel output with ID {dp8_instrument_id} to unsupported value: {state} - accepted values are ['ON' | 'OFF'] (str)")
         return False
 
     for channel in channels:
         if channel not in [1, 2, 3]:
-            print(f"{Fore.RED}Error: Tried to configure an invalid channel of DP832 with ID {dp8_instrument_id}: CH{channel} - accepted values are 1, 2 or 3")
+            print(
+                f"{Fore.RED}Error: Tried to configure an invalid channel of DP832 with ID {dp8_instrument_id}: CH{channel} - accepted values are 1, 2 or 3")
             return False
         psu.write(f":OUTP CH{channel},{state}")
         reply = psu.query(f":OUTP? CH{channel}")
@@ -29,18 +31,20 @@ def set_channel_output_state(dp8_instrument_id: str, channels: list, state: str)
 
     psu.close()
     return True
-    
+
 
 def set_ovp_state(dp8_instrument_id: str, channels: list, state: str):
     psu = rm.open_resource(dp8_instrument_id)
 
     if state not in ['ON', 'OFF']:
-        print(f"{Fore.RED}Error: Tried to set DP832 channel OVP with ID {dp8_instrument_id} to unsupported value: {state} - accepted values are ['ON' | 'OFF'] (str)")
+        print(
+            f"{Fore.RED}Error: Tried to set DP832 channel OVP with ID {dp8_instrument_id} to unsupported value: {state} - accepted values are ['ON' | 'OFF'] (str)")
         return False
 
     for channel in channels:
         if channel not in [1, 2, 3]:
-            print(f"{Fore.RED}Error: Tried to configure OVP of an invalid channel of DP832 with ID {dp8_instrument_id}: CH{channel} - accepted values are 1, 2 or 3")
+            print(
+                f"{Fore.RED}Error: Tried to configure OVP of an invalid channel of DP832 with ID {dp8_instrument_id}: CH{channel} - accepted values are 1, 2 or 3")
             return False
         psu.write(f":SOURce[{channel}]:VOLT:PROT:STAT {state}")
         reply = psu.query(f":SOURce[{channel}]:VOLT:PROT:STAT?")
@@ -49,21 +53,23 @@ def set_ovp_state(dp8_instrument_id: str, channels: list, state: str):
         else:
             print(f"{Fore.RED}Error: Failed to set DP832 OCP on CH{channel} state to {state}")
             return False
-            
+
     psu.close()
     return True
-    
-    
+
+
 def set_ocp_state(dp8_instrument_id: str, channels: list, state: str):
     psu = rm.open_resource(dp8_instrument_id)
 
     if state not in ['ON', 'OFF']:
-        print(f"{Fore.RED}Error: Tried to set DP832 channel OCP with ID {dp8_instrument_id} to unsupported value: {state} - accepted values are ['ON' | 'OFF'] (str)")
+        print(
+            f"{Fore.RED}Error: Tried to set DP832 channel OCP with ID {dp8_instrument_id} to unsupported value: {state} - accepted values are ['ON' | 'OFF'] (str)")
         return False
 
     for channel in channels:
         if channel not in [1, 2, 3]:
-            print(f"{Fore.RED}Error: Tried to configure OCP of an invalid channel of DP832 with ID {dp8_instrument_id}: CH{channel} - accepted values are 1, 2 or 3")
+            print(
+                f"{Fore.RED}Error: Tried to configure OCP of an invalid channel of DP832 with ID {dp8_instrument_id}: CH{channel} - accepted values are 1, 2 or 3")
             return False
         psu.write(f":SOURce[{channel}]:CURR:PROT:STAT {state}")
         reply = psu.query(f":SOURce[{channel}]:CURR:PROT:STAT?")
@@ -97,14 +103,82 @@ def get_channel_settings(dp8_instrument_id: str, channels: list):
             "voltage_limit": float(psu.query(f":OUTP:OVP:VAL? CH{channel}").strip()),
             "current_limit": float(psu.query(f":OUTP:OCP:VAL? CH{channel}").strip())
         }
-    
+
     psu.close()
     return channel_settings_dict
 
 
+# psu responds with "YES" or "NO"
+def get_ocp_status(device_id, channels: int):
+    psu = rm.open_resource(device_id)
+    ocp_states = dict()
+
+    for channel in channels:
+        if channel not in [1, 2, 3]:
+            print(f"what the hell mate, {channel} is an invalid channel")
+            psu.close()
+            return None
+
+        ocp_states[f'CH{channel}'] = psu.query(f":OUTPut:OCP:ALAR? CH{channel}").strip('\n')
+
+        psu.close()
+        return ocp_states
+
+
+# psu responds with "YES" or "NO"
+def get_ovp_status(device_id, channels: list):
+    psu = rm.open_resource(device_id)
+    ovp_states = dict()
+
+    for channel in channels:
+        if channel not in [1, 2, 3]:
+            print(f"what the hell mate, {channel} is an invalid channel")
+            psu.close()
+            return None
+
+        ovp_states[f'CH{channel}'] = psu.query(f":OUTPut:OVP:ALAR? CH{channel}").strip('\n')
+
+    psu.close()
+    return ovp_states
+
+
+# psu responds with "CV", "CC", or "UR"
+def get_regulation_mode(device_id, channels: list):
+    psu = rm.open_resource(device_id)
+    regulation_modes = dict()
+
+    for channel in channels:
+        if channel not in [1, 2, 3]:
+            print(f"what the hell mate, {channel} is an invalid channel")
+            psu.close()
+            return "??"
+
+        regulation_modes[f'CH{channel}'] = psu.query(f":OUTPut:CVCC? CH{channel}").strip('\n')
+
+    psu.close()
+    return regulation_modes
+
+
+# psu responds with "ON" or "OFF"
+def get_output_state(device_id, channels: list):
+    output_states = dict()
+    psu = rm.open_resource(device_id)
+
+    for channel in channels:
+        if channel not in [1, 2, 3]:
+            print(f"what the hell mate, {channel} is an invalid channel")
+            psu.close()
+            return "??"
+
+        output_states[f'CH{channel}'] = psu.query(f":OUTPut:STATe? CH{channel}").strip('\n')
+
+    psu.close()
+    return output_states
+
+
 def configure_voltage(dp8_instrument_id: str, channels: list, voltage: float):
     psu = rm.open_resource(dp8_instrument_id)
-    
+
     for channel in channels:
         if channel not in [1, 2, 3]:
             print(f"{Fore.RED}Error: Invalid channel {channel}.")
@@ -130,24 +204,26 @@ def configure_voltage(dp8_instrument_id: str, channels: list, voltage: float):
             if valid_reply_ch1_ch2_dp832a in reply or valid_reply_ch1_ch2_dp832 in reply:
                 print(f"Configured DP832 CH{channel} to {voltage:.3f} V")
             else:
-                print(f"{Fore.RED}Error: Configuration for DP832(A) channel CH{channel} failed. Expected part of {valid_reply_ch1_ch2_dp832a} or {valid_reply_ch1_ch2_dp832}, got {reply}")
-                return False
+                print(
+                    f"{Fore.RED}Error: Configuration for DP832(A) channel CH{channel} failed. Expected part of {valid_reply_ch1_ch2_dp832a} or {valid_reply_ch1_ch2_dp832}, got {reply}")
+                sys.exit()
         elif channel == 3:
             if valid_reply_ch3_dp832a in reply or valid_reply_ch3_dp832 in reply:
                 print(f"Configured DP832 CH{channel} to {voltage:.3f} V")
             else:
-                print(f"{Fore.RED}Error: Configuration for DP832(A) channel CH{channel} failed. Expected part of {valid_reply_ch3_dp832a} or {valid_reply_ch3_dp832}, got {reply}")
-                return False
+                print(
+                    f"{Fore.RED}Error: Configuration for DP832(A) channel CH{channel} failed. Expected part of {valid_reply_ch3_dp832a} or {valid_reply_ch3_dp832}, got {reply}")
+                sys.exit()
 
     psu.close()
     return True
-    
+
 
 def configure_current(dp8_instrument_id: str, channels: list, current: float):
     psu = rm.open_resource(dp8_instrument_id)
-    
+
     print(f"tryna set CH {channels} to {current:.3f}")
-    
+
     for channel in channels:
         if channel not in [1, 2, 3]:
             print(f"{Fore.RED}Error: Invalid channel {channel}.")
@@ -155,7 +231,7 @@ def configure_current(dp8_instrument_id: str, channels: list, current: float):
         if not 0 <= current <= 3.200:
             print(f"{Fore.RED}Error: Current for CH{channel} is outside the 0.000 - 3.200 A range.")
             return False
-            
+
         # configure channel
         psu.write(f":SOURce[{channel}]:CURR {current}")
         reply = psu.query(f":SOURce[{channel}]:CURR?")
@@ -163,7 +239,8 @@ def configure_current(dp8_instrument_id: str, channels: list, current: float):
         if current == float(reply.strip()):
             print(f"Configured DP832 CH{channel} to {current:.3f} A")
         else:
-            print(f"{Fore.RED}Error: Configuration for DP832(A) channel CH{channel} failed. Expected reply {current}, got {reply}")
+            print(
+                f"{Fore.RED}Error: Configuration for DP832(A) channel CH{channel} failed. Expected reply {current}, got {reply}")
             return False
 
     psu.close()
@@ -188,15 +265,16 @@ def configure_voltage_limit(dp8_instrument_id: str, channels: list, voltage_limi
 
         try:
             # Set voltage protection for the correct channel using explicit formatting
-            psu.write(f":OUTP:OVP:VAL CH{channel},{voltage_limit:.3f}") 
-        
+            psu.write(f":OUTP:OVP:VAL CH{channel},{voltage_limit:.3f}")
+
             # Verify the voltage limit was correctly set by querying the channel again
             reply = psu.query(f":OUTP:OVP:VAL? CH{channel}")
-            
+
             if abs(float(reply.strip()) - voltage_limit) < 1e-3:
                 print(f"Voltage limit successfully set to {voltage_limit:.3f} V on CH{channel}")
             else:
-                print(f"{Fore.RED}Error: Failed to verify voltage limit on CH{channel}. Expected {voltage_limit:.3f}, got {reply}")
+                print(
+                    f"{Fore.RED}Error: Failed to verify voltage limit on CH{channel}. Expected {voltage_limit:.3f}, got {reply}")
                 return False
 
         except Exception as e:
@@ -220,21 +298,22 @@ def configure_current_limit(dp8_instrument_id: str, channels: list, current_limi
 
         try:
             # Set current protection for the correct channel using explicit formatting
-            psu.write(f":OUTP:OCP:VAL CH{channel},{current_limit:.3f}") 
-        
+            psu.write(f":OUTP:OCP:VAL CH{channel},{current_limit:.3f}")
+
             # Verify the current limit was correctly set by querying the channel again
             reply = psu.query(f":OUTP:OCP:VAL? CH{channel}")
-            
+
             if abs(float(reply.strip()) - current_limit) < 1e-3:
                 print(f"Current limit successfully set to {current_limit:.3f} A on CH{channel}")
             else:
-                print(f"{Fore.RED}Error: Failed to verify current limit on CH{channel}. Expected {current_limit:.3f}, got {reply}")
+                print(
+                    f"{Fore.RED}Error: Failed to verify current limit on CH{channel}. Expected {current_limit:.3f}, got {reply}")
                 return False
 
         except Exception as e:
             print(f"{Fore.RED}Exception occurred while setting current limit on CH{channel}: {str(e)}")
             return False
-        
+
     psu.close()
     return True
 
@@ -245,14 +324,17 @@ def configure_channel_static(dp8_instrument_id: str, channels: list, voltage: fl
     for channel in channels:
         # perform input check
         if channel not in [1, 2, 3]:
-            print(f"{Fore.RED}Error: Tried to configure an invalid channel of DP832 with ID {dp8_instrument_id}: CH{channel} - accepted values are ['CH1' | 'CH2' | 'CH3'] (str) ")
-            return False
+            print(
+                f"{Fore.RED}Error: Tried to configure an invalid channel of DP832 with ID {dp8_instrument_id}: CH{channel} - accepted values are ['CH1' | 'CH2' | 'CH3'] (str) ")
+            sys.exit()
         if not 0 <= voltage <= 32.000:
-            print(f"{Fore.RED}Error: Attempted to set voltage of DP832 channel CH{channel} to {voltage:.3f} V, which is outside of the allowable range of 0.000 - 32.000 V")
-            return False
+            print(
+                f"{Fore.RED}Error: Attempted to set voltage of DP832 channel CH{channel} to {voltage:.3f} V, which is outside of the allowable range of 0.000 - 32.000 V")
+            sys.exit()
         if not 0 <= current <= 3.200:
-            print(f"{Fore.RED}Error: Attempted to set current of DP832 channel CH{channel} to {current:.3f} A, which is outside of the allowable range of 0.000 - 3.200 A")
-            return False
+            print(
+                f"{Fore.RED}Error: Attempted to set current of DP832 channel CH{channel} to {current:.3f} A, which is outside of the allowable range of 0.000 - 3.200 A")
+            sys.exit()
 
         # configure channel
         psu.write(f":APPL CH{channel}, {voltage:.3f}, {current:.3f}")
@@ -270,16 +352,18 @@ def configure_channel_static(dp8_instrument_id: str, channels: list, voltage: fl
             elif reply == valid_reply_ch1_ch2_dp832:
                 print(f"Configured DP832 CH{channel} to {voltage:.2f} V, {current:.3f} A")
             else:
-                print(f"{Fore.RED}Error: Configuration for DP832(A) channel CH{channel} failed. Expected {valid_reply_ch1_ch2_dp832a} or {valid_reply_ch1_ch2_dp832}, got {reply}")
-                return False
+                print(
+                    f"{Fore.RED}Error: Configuration for DP832(A) channel CH{channel} failed. Expected {valid_reply_ch1_ch2_dp832a} or {valid_reply_ch1_ch2_dp832}, got {reply}")
+                sys.exit()
         elif channel in [3]:
             if reply == valid_reply_ch3_dp832a:
                 print(f"Configured DP832A CH{channel} to {voltage:.3f} V, {current:.3f} A")
             elif reply == valid_reply_ch3_dp832:
                 print(f"Configured DP832 CH{channel} to {voltage:.2f} V, {current:.3f} A")
             else:
-                print(f"{Fore.RED}Error: Configuration for DP832(A) channel CH{channel} failed. Expected {valid_reply_ch3_dp832a} or {valid_reply_ch3_dp832}, got {reply}")
-                return False
+                print(
+                    f"{Fore.RED}Error: Configuration for DP832(A) channel CH{channel} failed. Expected {valid_reply_ch3_dp832a} or {valid_reply_ch3_dp832}, got {reply}")
+                sys.exit()
     psu.close()
     return True
 
