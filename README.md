@@ -27,15 +27,3 @@ Only tested on Windows 10
 3. Use the power supply as you would with the front interface
 
 ![image](https://github.com/user-attachments/assets/1213d0bf-de36-4c6b-ba6d-9eb65b739e43)
-
-
------
-
-**Known issues**
-- Does not check if the input is on/off when initialising, resulting in no updates to the display until the toggle output button is pressed
-- Under certain circumstances (VISA time-out related) the channel information can get messed up, might be update rate related
-- No warning is produced when the voltage or current limit has been triggered; the only way to tell right now is by seeing that the output enabled but the output voltage is 0.000 V
-- CV in the top right of the power supply channel is a placeholder, it does not query what regulation mode is currently active
-- The entire row (where the channel information is) was to be filled in when the channel is enabled; it only fills in the parts where there is text
-- Sometimes the entire app freezes and dies, might be update rate related
-- No support for ethernet devices when detecting devices
