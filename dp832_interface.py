@@ -15,7 +15,8 @@ import find_instrument  # Import the module that contains find_devices_by_patter
 
 
 class ChannelFrame(tk.Frame):
-    def __init__(self, master, channel_number, color, voltage_range, current_range, instrument):
+    def __init__(self, master, channel_number, color, voltage_range, current_range, instrument,
+                 track_voltage_callback=None):
         super().__init__(master, bg="black", padx=10, pady=10)
 
         self.color = color
@@ -31,7 +32,11 @@ class ChannelFrame(tk.Frame):
         self.refresh_active = False
 
         self.ovp_ocp_monitor_thread = None
-        self.monitor_ovp_ocp = False  # Flag to indicate if we should monitor OVP/OCP
+        self.monitor_ovp_ocp = False
+
+        # Tracking related
+        self.track_on_load = False
+        self.track_voltage_callback = track_voltage_callback
 
         # Full row background label (Row 1)
         self.row_1_full_bg = tk.Frame(self, bg="black", height=30)
@@ -81,6 +86,27 @@ class ChannelFrame(tk.Frame):
             self.channel_enabled = True
             self.update_channel_state()
             self.start_refresh()
+            
+    def toggle_track_on_load(self):
+        # Toggle state
+        self.track_on_load = not self.track_on_load
+
+        if self.track_on_load:
+            # Visual feedback
+            if hasattr(self, "track_button"):
+                self.track_button.config(bg="#8dce7e")
+            # Immediately push current set voltage to load if possible
+            try:
+                text = self.set_voltage_label.cget("text").split()[0]
+                current_v = float(text)
+                if self.track_voltage_callback:
+                    self.track_voltage_callback(self.channel_number, current_v)
+            except Exception:
+                pass
+        else:
+            if hasattr(self, "track_button"):
+                self.track_button.config(bg="#757a82")
+
 
     def create_set_limit_table(self):
         table_frame = tk.Frame(self, bg="black")
@@ -267,16 +293,29 @@ class ChannelFrame(tk.Frame):
                     success = dp832.configure_voltage_limit(self.instrument, [self.channel_number], value)
                 elif "Current Limit" in label_text:
                     success = dp832.configure_current_limit(self.instrument, [self.channel_number], value)
+                else:
+                    success = False
 
                 if success:
                     self.after(0, self.update_set_value_label, label_text, value)
+
+                    # If this is the main voltage set and tracking is active, update load
+                    if ("Voltage" in label_text and "Limit" not in label_text
+                            and self.track_on_load
+                            and self.track_voltage_callback is not None):
+                        # Call back to main control with the new voltage
+                        self.track_voltage_callback(self.channel_number, value)
                 else:
                     self.after(0, self.display_error, f"Failed to set {label_text}")
             else:
-                self.after(0, self.display_error,
-                           f"{label_text.split()[1]} must be between {value_range[0]:.3f} - {value_range[1]:.3f}")
+                self.after(
+                    0,
+                    self.display_error,
+                    f"{label_text.split()[1]} must be between {value_range[0]:.3f} - {value_range[1]:.3f}"
+                )
         except ValueError:
             self.after(0, self.display_error, f"Invalid input for {label_text.split()[1]}")
+
 
     def update_set_value_label(self, label_text, value):
         if "Voltage" in label_text and "Limit" not in label_text:
@@ -348,6 +387,7 @@ class PowerSupplyControl(tk.Tk):
         self.minsize(1063, 683)
 
         self.device = device
+        self.load_id = self.find_dl3021()
 
         # Get the current channel settings
         channel_settings = dp832.get_channel_settings(self.device, [1, 2, 3])
@@ -357,27 +397,37 @@ class PowerSupplyControl(tk.Tk):
 
         # Initialize channel 1 with the settings
         self.channel_1_frame = ChannelFrame(
-            channels_frame, channel_number=1, color="yellow",
-            voltage_range=(0.0, 32.0), current_range=(0.0, 3.2),
-            instrument=self.device
+            channels_frame,
+            channel_number=1,
+            color="yellow",
+            voltage_range=(0.0, 32.0),
+            current_range=(0.0, 3.2),
+            instrument=self.device,
+            track_voltage_callback=self.track_voltage_on_load
         )
         self.channel_1_frame.grid(row=0, column=0, padx=20, pady=10)
         self.channel_1_frame.initialize_from_settings(channel_settings[1])
 
-        # Initialize channel 2 with the settings
         self.channel_2_frame = ChannelFrame(
-            channels_frame, channel_number=2, color="cyan",
-            voltage_range=(0.0, 32.0), current_range=(0.0, 3.2),
-            instrument=self.device
+            channels_frame,
+            channel_number=2,
+            color="cyan",
+            voltage_range=(0.0, 32.0),
+            current_range=(0.0, 3.2),
+            instrument=self.device,
+            track_voltage_callback=self.track_voltage_on_load
         )
         self.channel_2_frame.grid(row=0, column=2, padx=20, pady=10)
         self.channel_2_frame.initialize_from_settings(channel_settings[2])
 
-        # Initialize channel 3 with the settings
         self.channel_3_frame = ChannelFrame(
-            channels_frame, channel_number=3, color="magenta",
-            voltage_range=(0.0, 5.3), current_range=(0.0, 3.2),
-            instrument=self.device
+            channels_frame,
+            channel_number=3,
+            color="magenta",
+            voltage_range=(0.0, 5.3),
+            current_range=(0.0, 3.2),
+            instrument=self.device,
+            track_voltage_callback=self.track_voltage_on_load
         )
         self.channel_3_frame.grid(row=0, column=4, padx=20, pady=10)
         self.channel_3_frame.initialize_from_settings(channel_settings[3])
@@ -387,43 +437,146 @@ class PowerSupplyControl(tk.Tk):
         self.create_channel_controls(3, self.channel_3_frame)
 
         self.add_vertical_lines()
+    
+    def find_dl3021(self):
+        try:
+            # Adjust pattern if needed to match your DL3021 ID
+            devices = find_instrument.find_devices_by_pattern("DL3")
+            if devices:
+                return devices[0]
+        except Exception:
+            pass
+        return None
+
 
     def create_channel_controls(self, channel_number, channel_frame):
         btn_frame = tk.Frame(self, bg="#ebeaea")
         btn_frame.grid(row=1, column=(channel_number * 2) - 2, padx=5, pady=10)
 
-        toggle_channel_btn = tk.Button(btn_frame, text="Toggle Output", command=channel_frame.toggle_channel,
-                                       fg="white", bg="#757a82", width=15)
+        toggle_channel_btn = tk.Button(
+            btn_frame,
+            text="Toggle Output",
+            command=channel_frame.toggle_channel,
+            fg="white",
+            bg="#757a82",
+            width=15
+        )
         toggle_channel_btn.grid(row=0, column=0, padx=2, pady=2)
         channel_frame.toggle_channel_btn = toggle_channel_btn
 
-        toggle_voltage_limit_btn = tk.Button(btn_frame, text="Toggle Voltage Limit",
-                                             command=channel_frame.toggle_voltage_limit, fg="white", bg="#757a82",
-                                             width=15)
+        toggle_voltage_limit_btn = tk.Button(
+            btn_frame,
+            text="Toggle Voltage Limit",
+            command=channel_frame.toggle_voltage_limit,
+            fg="white",
+            bg="#757a82",
+            width=15
+        )
         toggle_voltage_limit_btn.grid(row=1, column=0, padx=2, pady=2)
         channel_frame.toggle_voltage_limit_btn = toggle_voltage_limit_btn
 
-        toggle_current_limit_btn = tk.Button(btn_frame, text="Toggle Current Limit",
-                                             command=channel_frame.toggle_current_limit, fg="white", bg="#757a82",
-                                             width=15)
+        toggle_current_limit_btn = tk.Button(
+            btn_frame,
+            text="Toggle Current Limit",
+            command=channel_frame.toggle_current_limit,
+            fg="white",
+            bg="#757a82",
+            width=15
+        )
         toggle_current_limit_btn.grid(row=2, column=0, padx=2, pady=2)
         channel_frame.toggle_current_limit_btn = toggle_current_limit_btn
 
-        btn_frame.grid_rowconfigure(3, minsize=10)
+        # NEW: Track voltage on load
+        track_button = tk.Button(
+            btn_frame,
+            text="Track voltage on load",
+            command=channel_frame.toggle_track_on_load,
+            fg="white",
+            bg="#757a82",
+            width=20
+        )
+        track_button.grid(row=3, column=0, padx=2, pady=4)
+        channel_frame.track_button = track_button
 
-        channel_frame.create_set_fields(btn_frame, row=4, col=0, label_text="Set Voltage (V)", param_type="voltage",
-                                        value_range=channel_frame.voltage_range)
-        channel_frame.create_set_fields(btn_frame, row=6, col=0, label_text="Set Current (A)", param_type="current",
-                                        value_range=channel_frame.current_range)
-        channel_frame.create_set_fields(btn_frame, row=8, col=0, label_text="Voltage Limit (V)",
-                                        param_type="voltage_limit", value_range=channel_frame.voltage_range)
-        channel_frame.create_set_fields(btn_frame, row=10, col=0, label_text="Current Limit (A)",
-                                        param_type="current_limit", value_range=channel_frame.current_range)
+        btn_frame.grid_rowconfigure(4, minsize=10)
 
-        error_label = tk.Label(btn_frame, text="", font=("Courier", 10), fg="red", bg="#ebeaea", wraplength=250,
-                               justify="left", height=2)
-        error_label.grid(row=11, column=0, columnspan=3, pady=5)
+        channel_frame.create_set_fields(
+            btn_frame, row=5, col=0,
+            label_text="Set Voltage (V)",
+            param_type="voltage",
+            value_range=channel_frame.voltage_range
+        )
+        channel_frame.create_set_fields(
+            btn_frame, row=7, col=0,
+            label_text="Set Current (A)",
+            param_type="current",
+            value_range=channel_frame.current_range
+        )
+        channel_frame.create_set_fields(
+            btn_frame, row=9, col=0,
+            label_text="Voltage Limit (V)",
+            param_type="voltage_limit",
+            value_range=channel_frame.voltage_range
+        )
+        channel_frame.create_set_fields(
+            btn_frame, row=11, col=0,
+            label_text="Current Limit (A)",
+            param_type="current_limit",
+            value_range=channel_frame.current_range
+        )
+
+        error_label = tk.Label(
+            btn_frame,
+            text="",
+            font=("Courier", 10),
+            fg="red",
+            bg="#ebeaea",
+            wraplength=250,
+            justify="left",
+            height=2
+        )
+        error_label.grid(row=12, column=0, columnspan=3, pady=5)
         channel_frame.error_label = error_label
+
+
+    def track_voltage_on_load(self, channel_number, channel_voltage):
+        """
+        Configure DL3021 in CV mode to follow the given channel voltage plus 0.02 V.
+        Called from ChannelFrame when tracking is enabled and voltage is set.
+        """
+        if not self.load_id:
+            # If no DL3021 is available, show a one-time error.
+            messagebox.showerror(
+                "DL3021 not found",
+                "No DL3021 DC load detected. Cannot track voltage on load."
+            )
+            return
+
+        def worker():
+            try:
+                target_voltage = channel_voltage + 0.02
+                # Choose a safe generic range. Adjust if your dl3021.configure_cv_static expects something else.
+                v_range = 150
+                dl3021.configure_cv_static(
+                    self.load_id,
+                    voltage=target_voltage,
+                    v_range=v_range,
+                    read_back=True,
+                    disable_input_on_change=True
+                )
+            except Exception as e:
+                # Ensure UI update happens in main thread
+                self.after(
+                    0,
+                    lambda: messagebox.showerror(
+                        "DL3021 error",
+                        f"Failed to configure DL3021 for CH{channel_number}: {e}"
+                    )
+                )
+
+        Thread(target=worker, daemon=True).start()
+
+
 
     def add_vertical_lines(self):
         line1 = tk.Frame(self, width=2, height=100, bg="black")
