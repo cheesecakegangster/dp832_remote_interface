@@ -542,11 +542,12 @@ class PowerSupplyControl(tk.Tk):
 
     def track_voltage_on_load(self, channel_number, channel_voltage):
         """
-        Configure DL3021 in CV mode to follow the given channel voltage plus 0.02 V.
+        Configure DL3021 in CV mode to follow the given channel voltage plus 0.02 V
+        and enable the DL3021 input.
+
         Called from ChannelFrame when tracking is enabled and voltage is set.
         """
         if not self.load_id:
-            # If no DL3021 is available, show a one-time error.
             messagebox.showerror(
                 "DL3021 not found",
                 "No DL3021 DC load detected. Cannot track voltage on load."
@@ -556,8 +557,9 @@ class PowerSupplyControl(tk.Tk):
         def worker():
             try:
                 target_voltage = channel_voltage + 0.02
-                # Choose a safe generic range. Adjust if your dl3021.configure_cv_static expects something else.
-                v_range = 150
+                v_range = 150  # adjust if your DL3021 wrapper expects something specific
+
+                # Configure DL3021 in CV mode
                 dl3021.configure_cv_static(
                     self.load_id,
                     voltage=target_voltage,
@@ -565,8 +567,12 @@ class PowerSupplyControl(tk.Tk):
                     read_back=True,
                     disable_input_on_change=True
                 )
+
+                # Ensure input is enabled after configuration
+                # Uses your dl3021.set_input_state helper
+                dl3021.set_input_state(self.load_id, "ON")
+
             except Exception as e:
-                # Ensure UI update happens in main thread
                 self.after(
                     0,
                     lambda: messagebox.showerror(
@@ -576,6 +582,7 @@ class PowerSupplyControl(tk.Tk):
                 )
 
         Thread(target=worker, daemon=True).start()
+
 
 
 
