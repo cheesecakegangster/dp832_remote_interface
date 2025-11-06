@@ -12,6 +12,7 @@ sys.path.insert(1, p)
 
 import dp832
 import find_instrument  # Import the module that contains find_devices_by_pattern
+import dl3021
 
 
 class ChannelFrame(tk.Frame):
