@@ -93,7 +93,6 @@ class ChannelFrame(tk.Frame):
         self.track_on_load = not self.track_on_load
 
         if self.track_on_load:
-            # Visual feedback
             if hasattr(self, "track_button"):
                 self.track_button.config(bg="#8dce7e")
             # Immediately push current set voltage to load if possible
@@ -107,6 +106,10 @@ class ChannelFrame(tk.Frame):
         else:
             if hasattr(self, "track_button"):
                 self.track_button.config(bg="#757a82")
+            # Inform callback that tracking stopped so it can disable the load input
+            if self.track_voltage_callback:
+                self.track_voltage_callback(self.channel_number, None)
+
 
 
     def create_set_limit_table(self):
@@ -214,6 +217,13 @@ class ChannelFrame(tk.Frame):
                     self.ovp_ocp_monitor_thread.start()
                 else:
                     self.stop_refresh()
+                    # If tracking was active for this channel, signal to stop on the load side
+                    if self.track_on_load and self.track_voltage_callback:
+                        self.track_on_load = False
+                        if hasattr(self, "track_button"):
+                            self.track_button.config(bg="#757a82")
+                        self.track_voltage_callback(self.channel_number, None)
+
             else:
                 self.after(0, self.display_error, f"Failed to toggle output for Channel {self.channel_number}")
         except Exception as e:
@@ -542,12 +552,17 @@ class PowerSupplyControl(tk.Tk):
 
     def track_voltage_on_load(self, channel_number, channel_voltage):
         """
-        Configure DL3021 in CV mode to follow the given channel voltage plus 0.02 V
-        and enable the DL3021 input.
-
-        Called from ChannelFrame when tracking is enabled and voltage is set.
+        If channel_voltage is a float:
+            Configure DL3021 in CV mode to follow channel_voltage + 0.02 V and enable input.
+        If channel_voltage is None:
+            Turn DL3021 input OFF (stop tracking).
         """
-        if not self.load_id:
+        # If this is a "stop tracking" call and there is no load, just ignore silently
+        if channel_voltage is None and not self.load_id:
+            return
+
+        # For enable calls, still show the error if no load is present
+        if channel_voltage is not None and not self.load_id:
             messagebox.showerror(
                 "DL3021 not found",
                 "No DL3021 DC load detected. Cannot track voltage on load."
@@ -556,10 +571,15 @@ class PowerSupplyControl(tk.Tk):
 
         def worker():
             try:
-                target_voltage = channel_voltage + 0.02
-                v_range = 150  # adjust if your DL3021 wrapper expects something specific
+                if channel_voltage is None:
+                    # Stop tracking: turn DL3021 input OFF
+                    dl3021.set_input_state(self.load_id, "OFF")
+                    return
 
-                # Configure DL3021 in CV mode
+                # Tracking enable or update
+                target_voltage = channel_voltage + 0.02
+                v_range = 150  # Adjust for your DL3021 if needed
+
                 dl3021.configure_cv_static(
                     self.load_id,
                     voltage=target_voltage,
@@ -568,8 +588,6 @@ class PowerSupplyControl(tk.Tk):
                     disable_input_on_change=True
                 )
 
-                # Ensure input is enabled after configuration
-                # Uses your dl3021.set_input_state helper
                 dl3021.set_input_state(self.load_id, "ON")
 
             except Exception as e:
@@ -582,6 +600,7 @@ class PowerSupplyControl(tk.Tk):
                 )
 
         Thread(target=worker, daemon=True).start()
+
 
 
 
